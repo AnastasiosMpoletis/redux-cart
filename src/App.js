@@ -1,13 +1,20 @@
 import { useEffect } from 'react';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
+import { Fragment } from 'react';
 
+import Notification from './components/UI/Notification.js';
 import Cart from './components/Cart/Cart';
 import Layout from './components/Layout/Layout';
 import Products from './components/Shop/Products';
+import { uiActions } from './store/ui-slice.js';
+
+let isInitial = true; // we use it so that useEffect cannot send data when opening the App for the first time
 
 function App() {
+  const dispatch = useDispatch();
   const showCart = useSelector(state => state.ui.cartIsVisible);
   const cart = useSelector(state => state.cart);
+  const notification = useSelector(state => state.ui.notification);
 
   /**
    * We use Google FireBase database.
@@ -16,19 +23,61 @@ function App() {
    * This way, whenever the store changes the cart, fetch will update the database.
    */
   useEffect(() => {
-    fetch('https://redux-cart-ed864-default-rtdb.europe-west1.firebasedatabase.app/cart.json',
-      {
-        method: 'PUT', // overwites the entirely json data
-        body: JSON.stringify(cart)
+    const sendCartData = async () => {
+      dispatch(uiActions.showNotification({
+        status: 'pending',
+        title: 'Sending...',
+        message: 'Sending cart data!'
+      }));
+
+      const response = await fetch('https://redux-cart-ed864-default-rtdb.europe-west1.firebasedatabase.app/cart.json',
+        {
+          method: 'PUT', // overwites the entire json data
+          body: JSON.stringify(cart)
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Sending cart data failed.');
       }
-    );
-  }, [cart]);
+
+      // const responseData = await response.json();
+
+      dispatch(uiActions.showNotification({
+        status: 'success',
+        title: 'Success!',
+        message: 'Sent cart data successfully!',
+      }));
+    };
+
+    if (isInitial) {
+      isInitial = false;
+      return;
+    }
+
+    sendCartData().catch(error => {
+      dispatch(uiActions.showNotification({
+        status: 'error',
+        title: 'Error!',
+        message: 'Sending cart data failed!',
+      }));
+    });
+  }, [cart, dispatch]);
 
   return (
-    <Layout>
-      {showCart && <Cart />}
-      <Products />
-    </Layout>
+    <Fragment>
+      {notification && (
+        <Notification
+          status={notification.status}
+          title={notification.title}
+          message={notification.message}
+        />
+      )}
+      <Layout>
+        {showCart && <Cart />}
+        <Products />
+      </Layout>
+    </Fragment>
   );
 }
 
